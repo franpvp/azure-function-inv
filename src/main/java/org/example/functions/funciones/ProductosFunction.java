@@ -17,7 +17,7 @@ import java.util.Optional;
 public class ProductosFunction {
 
     @FunctionName("obtenerProductos")
-    public HttpResponseMessage run(
+    public HttpResponseMessage obtenerProductos(
             @HttpTrigger(
                     name = "reqGetAll",
                     methods = {HttpMethod.GET},
