@@ -3,7 +3,6 @@ package org.example.functions.funciones;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.azure.functions.*;
 import com.microsoft.azure.functions.annotation.*;
-import lombok.extern.slf4j.Slf4j;
 import org.example.functions.dto.ProductoDto;
 
 import java.sql.Connection;
@@ -141,7 +140,6 @@ public class ProductosFunction {
             ObjectMapper mapper = new ObjectMapper();
             ProductoDto nuevo = mapper.readValue(body, ProductoDto.class);
 
-            // conexión a Oracle
             String walletPath = "/Users/franciscapalma/Desktop/Bimestre VI/Cloud Native II/Semana 3/azure-project/Wallet_DQXABCOJF1X64NFC";
             String walletEnv = System.getenv("ORACLE_WALLET_DIR");
             if (walletEnv != null && !walletEnv.isBlank()) {
