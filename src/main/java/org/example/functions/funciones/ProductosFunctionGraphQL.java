@@ -41,14 +41,14 @@ public class ProductosFunctionGraphQL {
                 .field(f -> f.name("id").type(Scalars.GraphQLID))
                 .field(f -> f.name("nombre").type(Scalars.GraphQLString))
                 .field(f -> f.name("descripcion").type(Scalars.GraphQLString))
-                .field(f -> f.name("precio").type(Scalars.GraphQLFloat))
+                .field(f -> f.name("precio").type(Scalars.GraphQLInt))
                 .build();
 
         GraphQLInputObjectType productoInput = GraphQLInputObjectType.newInputObject()
                 .name("ProductoInput")
                 .field(f -> f.name("nombre").type(new GraphQLNonNull(Scalars.GraphQLString)))
                 .field(f -> f.name("descripcion").type(Scalars.GraphQLString))
-                .field(f -> f.name("precio").type(Scalars.GraphQLFloat))
+                .field(f -> f.name("precio").type(Scalars.GraphQLInt))
                 .build();
 
         DataFetcher<Map<String, Object>> productoByIdFetcher = env -> {
@@ -67,7 +67,7 @@ public class ProductosFunctionGraphQL {
             Map<String, Object> input = env.getArgument("input");
             String nombre = trimOrNull(input.get("nombre"));
             String descripcion = trimOrNull(input.get("descripcion"));
-            Double precio = toDoubleOrNull(input.get("precio"));
+            Integer precio = toIntOrNull(input.get("precio"));
             if (nombre == null || nombre.isBlank()) {
                 throw new IllegalArgumentException("nombre es requerido");
             }
@@ -81,7 +81,7 @@ public class ProductosFunctionGraphQL {
             Map<String, Object> input = env.getArgument("input");
             String nombre = trimOrNull(input.get("nombre"));
             String descripcion = trimOrNull(input.get("descripcion"));
-            Double precio = toDoubleOrNull(input.get("precio"));
+            Integer precio = toIntOrNull(input.get("precio"));
             boolean ok = actualizarProducto(id, nombre, descripcion, precio, log);
             if (!ok) return null;
             return obtenerProductoById(id, log);
@@ -100,7 +100,6 @@ public class ProductosFunctionGraphQL {
                 .field(f -> f
                         .name("producto")
                         .type(productoType)
-                        // usa GraphQLLong para evitar coerciones a char[]
                         .argument(GraphQLArgument.newArgument().name("id").type(new GraphQLNonNull(Scalars.GraphQLID)))
                         .dataFetcher(productoByIdFetcher)
                 )
@@ -237,9 +236,9 @@ public class ProductosFunctionGraphQL {
 
                 Object precioObj = rs.getObject("PRECIO");
                 if (precioObj != null) {
-                    if (precioObj instanceof java.math.BigDecimal bd) p.put("precio", bd.doubleValue());
-                    else if (precioObj instanceof Number n)           p.put("precio", n.doubleValue());
-                    else                                              p.put("precio", Double.valueOf(String.valueOf(precioObj)));
+                    if (precioObj instanceof java.math.BigDecimal bd) p.put("precio", bd.intValue());
+                    else if (precioObj instanceof Number n)           p.put("precio", n.intValue());
+                    else                                              p.put("precio", Integer.valueOf(String.valueOf(precioObj)));
                 }
                 return p;
             }
@@ -257,7 +256,7 @@ public class ProductosFunctionGraphQL {
                 p.put("id", rs.getLong("ID"));
                 p.put("nombre", rs.getString("NOMBRE"));
                 p.put("descripcion", rs.getString("DESCRIPCION"));
-                double precio = rs.getDouble("PRECIO");
+                int precio = rs.getInt("PRECIO");
                 if (!rs.wasNull()) p.put("precio", precio);
                 list.add(p);
             }
@@ -265,13 +264,13 @@ public class ProductosFunctionGraphQL {
         }
     }
 
-    private static long insertarProducto(String nombre, String descripcion, Double precio, Logger log) throws Exception {
+    private static long insertarProducto(String nombre, String descripcion, Integer precio, Logger log) throws Exception {
         String sql = "INSERT INTO PRODUCTO (NOMBRE, DESCRIPCION, PRECIO) VALUES (?, ?, ?)";
         try (Connection conn = open();
              PreparedStatement ps = conn.prepareStatement(sql, new String[] { "ID" })) {
             ps.setString(1, nombre);
             if (descripcion != null) ps.setString(2, descripcion); else ps.setNull(2, Types.VARCHAR);
-            if (precio != null) ps.setDouble(3, precio); else ps.setNull(3, Types.NUMERIC);
+            if (precio != null) ps.setInt(3, precio); else ps.setNull(3, Types.INTEGER);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys != null && keys.next()) {
@@ -289,8 +288,8 @@ public class ProductosFunctionGraphQL {
             ps.setString(1, nombre);
             if (descripcion != null) { ps.setString(2, descripcion); ps.setString(3, descripcion); }
             else { ps.setNull(2, Types.VARCHAR); ps.setNull(3, Types.VARCHAR); }
-            if (precio != null) { ps.setDouble(4, precio); ps.setDouble(5, precio); }
-            else { ps.setNull(4, Types.NUMERIC); ps.setNull(5, Types.NUMERIC); }
+            if (precio != null) { ps.setInt(4, precio); ps.setInt(5, precio); }
+            else { ps.setNull(4, Types.INTEGER); ps.setNull(5, Types.INTEGER); }
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getLong(1);
             }
@@ -299,7 +298,7 @@ public class ProductosFunctionGraphQL {
         throw new SQLException("No fue posible obtener el ID generado");
     }
 
-    private static boolean actualizarProducto(long id, String nombre, String descripcion, Double precio, Logger log) throws Exception {
+    private static boolean actualizarProducto(long id, String nombre, String descripcion, Integer precio, Logger log) throws Exception {
         List<String> sets = new ArrayList<>();
         if (nombre != null) sets.add("NOMBRE=?");
         if (descripcion != null) sets.add("DESCRIPCION=?");
@@ -311,7 +310,7 @@ public class ProductosFunctionGraphQL {
             int idx = 1;
             if (nombre != null) ps.setString(idx++, nombre);
             if (descripcion != null) ps.setString(idx++, descripcion);
-            if (precio != null) ps.setDouble(idx++, precio);
+            if (precio != null) ps.setInt(idx++, precio);
             ps.setLong(idx, id);
             int rows = ps.executeUpdate();
             return rows > 0;
@@ -358,9 +357,17 @@ public class ProductosFunctionGraphQL {
         String s = String.valueOf(o).trim();
         return s.isEmpty() ? null : s;
     }
-    private static Double toDoubleOrNull(Object o) {
+    private static Integer toIntOrNull(Object o) {
         if (o == null) return null;
-        try { return Double.valueOf(String.valueOf(o)); } catch (Exception e) { return null; }
+        try {
+            String s = String.valueOf(o).trim();
+            if (s.isEmpty()) return null;
+            // Permitir valores numéricos enviados como 12.0 para convertirlos a 12
+            Double d = Double.valueOf(s);
+            return d.intValue();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     static class SimpleJson {
